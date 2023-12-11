@@ -21,20 +21,14 @@ use crate::constants::{APPLICATION_JSON, CONNECTION_POOL_ERROR};
 
 pub type DBPool = Pool<ConnectionManager<PgConnection>>;
 pub type DBPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
-pub type WebPool = web::Data<r2d2::Pool<ConnectionManager<PgConnection>>>;
+pub type WebPool = Data<Pool<ConnectionManager<PgConnection>>>;
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     std::env::set_var("RUST_LOG", "actix_web=trace");
-    
-    // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not set");
-    // let manager = ConnectionManager::<PgConnection>::new(database_url);
-    // let pool = r2d2::Pool::builder()
-    //     .build(manager)
-    //     .expect("Failed to create connection pool");
-    
+
     let pool =  establish_connection_pool();
 
     HttpServer::new(move || {
@@ -54,7 +48,7 @@ async fn main() -> std::io::Result<()> {
 
 
 #[get("/v1/contacts")]
-async fn get_contacts_v1(db: web::Data<r2d2::Pool<ConnectionManager<PgConnection>>>) -> HttpResponse {
+async fn get_contacts_v1(db: WebPool) -> HttpResponse {
     let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR); 
     let get_users = service_contacts::get_users(pool);
     println!("{:?}", get_users);
