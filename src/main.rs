@@ -1,6 +1,7 @@
 // main.rs
-use actix_web::web::{Data, Path};
-use actix_web::{App, HttpServer, web, HttpResponse, Responder, middleware, get};
+use actix_web::web::{Data, Json, Path};
+
+use actix_web::{App, HttpServer, web, HttpResponse, Responder, middleware, get, post};
 use diesel::r2d2::ConnectionManager;
 use diesel::prelude::*;
 use dotenv::dotenv;
@@ -11,14 +12,17 @@ mod models;
 mod constants;
 mod schema;
 mod services;
+mod handlers;
+mod ctl_contact;
+mod Employee;
 
 use db::establish_connection_pool;
 use crate::models::Contact;
-use crate::schema::contacts;
 use crate::services::service_contacts;
 use crate::services::contact_service::ContactService;
 use crate::constants::{APPLICATION_JSON, CONNECTION_POOL_ERROR};
 
+use crate::schema::contacts;
 pub type DBPool = Pool<ConnectionManager<PgConnection>>;
 pub type DBPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
 pub type WebPool = Data<Pool<ConnectionManager<PgConnection>>>;
@@ -35,11 +39,14 @@ async fn main() -> std::io::Result<()> {
         App::new() 
             .app_data(  Data::new(pool.clone()) )
             .wrap(middleware::Logger::default())
-            .service(get_contacts_v1)
+
             .service(get_contacts_v2)
             .service(get_contact_v2)            
             .service(get_contacts)
-            .service(get_contact_v1)     
+            .service(ctl_contact::get_contacts_v1)
+            .service(ctl_contact::get_contact_v1)
+            .service(ctl_contact::create_contact_v1)
+            .service(handlers::index)
     })
     .bind("127.0.0.1:8002")?
     .run()
@@ -47,16 +54,20 @@ async fn main() -> std::io::Result<()> {
 }
 
 
-#[get("/v1/contacts")]
-async fn get_contacts_v1(db: WebPool) -> HttpResponse {
+// v1 utiliza ContactService
+
+
+// v2 utiliza service_contacts
+#[get("/v2/contacts")]
+async fn get_contacts_v2(db: WebPool) -> HttpResponse {
     let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR); 
     let get_users = service_contacts::get_users(pool);
     println!("{:?}", get_users);
     HttpResponse::Ok().content_type(APPLICATION_JSON).json(get_users)
 }
 
-#[get("/v1/contacts/{id}")]
-async fn get_contact_v1(db: WebPool, path: Path<(i32,)>,) -> impl Responder {
+#[get("/v2/contacts/{id}")]
+async fn get_contact_v2(db: WebPool, path: Path<(i32,)>,) -> impl Responder {
     let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR); 
     let user_id = path.0;
     let get_user = service_contacts::get_user(pool, user_id);
@@ -65,44 +76,28 @@ async fn get_contact_v1(db: WebPool, path: Path<(i32,)>,) -> impl Responder {
 }
 
 
-#[get("/v2/contacts")]
-async fn get_contacts_v2(db: WebPool) -> HttpResponse {
-    let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR); 
-    //let get_users = service_contacts::get_users(pool);
-    let get_users = ContactService::get_contacts(pool);
-    println!("{:?}", get_users);
-    match get_users {
-        Ok(get_users) => HttpResponse::Ok().content_type(APPLICATION_JSON).json(get_users),
-        Err(_) => HttpResponse::NoContent().await.unwrap(),
-    }
-}
-
-#[get("/v2/contacts/{id}")]
-async fn get_contact_v2(param: Path<u32>, db: WebPool) -> HttpResponse {
-    let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR);
-    let user_id = param.into_inner();
-    println!("Path param {}", user_id);
-    let contact_id :i32 = user_id.try_into().unwrap();
-    let get_user = ContactService::get_contact(pool, contact_id);
-    println!("{:?}", get_user);
-    match get_user {
-        Ok(get_user) => HttpResponse::Ok().content_type(APPLICATION_JSON).json(get_user),
-        Err(_) => HttpResponse::NoContent().await.unwrap(),
-    }
-}
 
 
 
 #[get("/contacts")]
 async fn get_contacts(db: WebPool) -> HttpResponse {
-    use crate::contacts::dsl::contacts;
-    let mut pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR);
-    let likes: Vec<Contact> = match contacts.load::<Contact>(&mut pool)
+    // use crate::contacts::dsl::contacts;
+    use crate::schema::contacts::dsl::*;
+    let pool: DBPooledConnection = db.get().expect(CONNECTION_POOL_ERROR);
+
+    //let contacts_result: Result<Vec<Contact>, diesel::result::Error> = contacts.load::<Contact>(&pool);
+
+    let likes: Vec<Contact> = match contacts.load::<Contact>(&pool)
     {
-        Ok(lks) => lks,
+        Ok(likes) => likes,
         Err(_) => vec![],
     };
     HttpResponse::Ok().content_type(APPLICATION_JSON).json(likes)
+
+    /*match contacts_result {
+        Ok(contacts) => HttpResponse::Ok().content_type("application/json").json(contacts),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }*/
 }
 
 

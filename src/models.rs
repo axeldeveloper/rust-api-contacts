@@ -5,31 +5,34 @@ use serde::{Serialize, Deserialize};
 use crate::schema::contacts; // Importe o módulo schema para acessar a tabela contacts
 
 
-
-
-#[derive(Debug, Insertable)]
+#[derive(Debug, Insertable, Deserialize, Serialize, Queryable)]
 #[table_name = "contacts"]
 pub struct NewContact {
     pub name: String,
-    //pub cpf: String,
-    //pub age: i32,
+    pub cpf: String,
+    pub age: Option<i32>,
    //pub published: bool,
 }
 
 #[derive(Debug, Queryable, Serialize, Deserialize)]
 pub struct Contact {
-    //#[diesel(sql_type = Integer)]
     pub id: i32,
-    //#[diesel(sql_type = Text)]
     pub name: String,
-    //#[diesel(sql_type = Text)]
     pub cpf: String,
-    //#[diesel(sql_type = Integer)]
-    //age: i32,
-    //#[diesel(sql_type = Bool)]
+    pub age: Option<i32>,
     //published: Bool,
+}
 
-    
+
+impl Contact {
+    fn from(contact: Contact) -> Contact {
+        Contact {
+            id: 0,
+            name: contact.name,
+            cpf: contact.cpf,
+            age: contact.age,
+        }
+    }
 }
 
 // impl Contact {
